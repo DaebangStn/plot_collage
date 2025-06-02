@@ -1,5 +1,5 @@
 import tkinter as tk
-from PIL import ImageGrab
+from PIL import ImageGrab, Image
 import subprocess
 import math
 from image_item import ImageItem
@@ -9,11 +9,54 @@ class CollageCanvas:
         self.root = root
         self.canvas = tk.Canvas(root, width=1200, height=1200, bg="white")
         self.canvas.pack(fill=tk.BOTH, expand=True)
+        # Draw boundary lines for x=0 and y=0 and store their IDs
+        self.x_axis_id = self.canvas.create_line(0, 0, 0, 1200, fill='black', width=2)  # y-axis
+        self.y_axis_id = self.canvas.create_line(0, 0, 1200, 0, fill='black', width=2)  # x-axis
         self.images = []
         self.current_scale = 1.0
         self.selected_image = None
         self.drag_offset = (0, 0)
         self.setup_bindings()
+        self.root.bind_all('<space>', self.copy_collage_to_clipboard)
+
+    def get_total_bbox(self):
+        if not self.images:
+            return None
+        bboxes = [img.get_bbox() for img in self.images]
+        min_x = min(b[0] for b in bboxes)
+        min_y = min(b[1] for b in bboxes)
+        max_x = max(b[2] for b in bboxes)
+        max_y = max(b[3] for b in bboxes)
+        return (min_x, min_y, max_x, max_y)
+
+    def copy_collage_to_clipboard(self, event=None):
+        bbox = self.get_total_bbox()
+        if not bbox:
+            return
+        min_x, min_y, max_x, max_y = bbox
+        width, height = int(max_x - min_x), int(max_y - min_y)
+        collage = Image.new("RGBA", (width, height), (255, 255, 255, 0))
+        for img in self.images:
+            x, y = img.pos
+            offset_x = int(x - img.pil.width // 2 - min_x)
+            offset_y = int(y - img.pil.height // 2 - min_y)
+            collage.paste(img.pil, (offset_x, offset_y), img.pil if img.pil.mode == 'RGBA' else None)
+        # Now put collage to clipboard as PNG
+        try:
+            import io
+            import subprocess
+            output = io.BytesIO()
+            collage.save(output, "PNG")
+            data = output.getvalue()
+            p = subprocess.Popen(['xclip', '-selection', 'clipboard', '-t', 'image/png', '-i'], stdin=subprocess.PIPE)
+            p.communicate(data)
+            print("Clipboard copy successful (PNG)")
+        except Exception as e:
+            print("Clipboard copy failed:", e)
+
+    def boundary_check(self, bbox):
+        # Returns True if bbox is within allowed boundaries (x >= 0, y >= 0)
+        return bbox[0] >= 0 and bbox[1] >= 0
 
     def setup_bindings(self):
         self.canvas.bind("<Button-4>", self.zoomerP)
@@ -26,14 +69,34 @@ class CollageCanvas:
         self.canvas.bind("<B3-Motion>", self.on_image_drag)
         self.canvas.bind("<ButtonRelease-3>", self.on_image_release)
 
-    def rerender_images(self):
+    def rerender_images(self, allow_collisions=True):
         for img in self.images:
             img.render(self.canvas, self.current_scale)
-        self.resolve_collisions()
+        if not allow_collisions:
+            self.resolve_collisions()
         for img in self.images:
             if img.id is not None:
                 x, y = int(img.pos[0] * self.current_scale), int(img.pos[1] * self.current_scale)
                 self.canvas.coords(img.id, x, y)
+
+        # Only draw axes for x>0 and y>0 (positive quadrant)
+        x0 = self.canvas.canvasx(0) / self.current_scale
+        y0 = self.canvas.canvasy(0) / self.current_scale
+        x1 = self.canvas.canvasx(self.canvas.winfo_width()) / self.current_scale
+        y1 = self.canvas.canvasy(self.canvas.winfo_height()) / self.current_scale
+
+        # y-axis (vertical at x=0, only for y >= 0)
+        self.canvas.coords(
+            self.x_axis_id,
+            int(0 * self.current_scale), int(max(0, y0) * self.current_scale),
+            int(0 * self.current_scale), int(max(0, y1) * self.current_scale)
+        )
+        # x-axis (horizontal at y=0, only for x >= 0)
+        self.canvas.coords(
+            self.y_axis_id,
+            int(max(0, x0) * self.current_scale), int(0 * self.current_scale),
+            int(max(0, x1) * self.current_scale), int(0 * self.current_scale)
+        )
 
     def zoomerP(self, event):
         self.current_scale *= 1.1
@@ -94,8 +157,9 @@ class CollageCanvas:
             y = self.canvas.canvasy(event.y) / self.current_scale
             new_x = x - self.drag_offset[0]
             new_y = y - self.drag_offset[1]
+            new_bbox = self.selected_image.get_bbox_at((new_x, new_y))
             self.selected_image.pos = (new_x, new_y)
-            self.rerender_images()
+            self.rerender_images(allow_collisions=True)
 
     def on_image_release(self, event):
         self.selected_image = None
@@ -138,6 +202,8 @@ class CollageCanvas:
                 new_x = x0
                 new_y = y0 - step
             else:
+                continue
+            if not self.boundary_check((new_x, new_y)):
                 continue
 
             if step > 0:
@@ -184,16 +250,30 @@ class CollageCanvas:
             img_idx = self.images.index(img)
             img = self.images.pop(img_idx)
             self.images.append(img)
-        
-        for i in range(1, len(self.images)):
+
+        max_attempts = 50  # Prevent infinite loops
+        for i in range(len(self.images)):
             prev_imgs = self.images[:i]
-            while True:
+            if not self.boundary_check(self.images[i].get_bbox()):
+                _img = self.images[i]
+                bbox = _img.get_bbox()
+                x_depth = min(0, bbox[0])
+                y_depth = min(0, bbox[1])
+                _img.pos = (_img.pos[0] - x_depth, _img.pos[1] - y_depth)
+            attempts = 0
+            while len(prev_imgs) > 0 and attempts < max_attempts:
                 colidx = self.append_colfree_list(prev_imgs, self.images[i])
                 if colidx == -1:
                     break
                 pos = self.find_non_overlapping_position(self.images[i], self.images[i].pos, prev_imgs[colidx])
+                if pos == self.images[i].pos:
+                    # No better position found, break to avoid infinite loop
+                    break
                 self.images[i].pos = pos
-        
+                attempts += 1
+            if attempts >= max_attempts:
+                print(f"Warning: Could not resolve collision for image {i} after {max_attempts} attempts.")
+
         if img is not None:
             self.images.pop()
             self.images.insert(img_idx, img)
