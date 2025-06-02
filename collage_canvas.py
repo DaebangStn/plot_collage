@@ -72,7 +72,7 @@ class CollageCanvas:
 
     def rerender_images(self, allow_collisions=True):
         for img in self.images:
-            img.render(self.canvas, self.current_scale)
+            img.render(self.current_scale)
         if not allow_collisions:
             self.resolve_collisions()
         for img in self.images:
@@ -128,7 +128,7 @@ class CollageCanvas:
         if img is not None:
             x0 = self.canvas.canvasx(self.canvas.winfo_width() // 2) / self.current_scale
             y0 = self.canvas.canvasy(self.canvas.winfo_height() // 2) / self.current_scale
-            item = ImageItem(img, (x0, y0))
+            item = ImageItem(img, (x0, y0), len(self.images), self.canvas)
             self.images.append(item)
             self.resolve_collisions(item)
             self.rerender_images()
