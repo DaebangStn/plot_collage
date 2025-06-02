@@ -9,6 +9,7 @@ class CollageCanvas:
         self.root = root
         self.canvas = tk.Canvas(root, width=1200, height=1200, bg="white")
         self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas.config(scrollregion=(-500, -500, 10000, 10000))
         # Draw boundary lines for x=0 and y=0 and store their IDs
         self.x_axis_id = self.canvas.create_line(0, 0, 0, 1200, fill='black', width=2)  # y-axis
         self.y_axis_id = self.canvas.create_line(0, 0, 1200, 0, fill='black', width=2)  # x-axis
