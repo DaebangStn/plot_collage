@@ -160,8 +160,13 @@ class CollageCanvas:
                         print("Failed to download image from URL:", e)
                         img = None
         if img is not None:
-            x0 = self.canvas.canvasx(self.canvas.winfo_width() // 2) / self.current_scale
-            y0 = self.canvas.canvasy(self.canvas.winfo_height() // 2) / self.current_scale
+            # Get mouse position if available, else center
+            if event is not None:
+                x0 = self.canvas.canvasx(event.x) / self.current_scale
+                y0 = self.canvas.canvasy(event.y) / self.current_scale
+            else:
+                x0 = self.canvas.canvasx(self.canvas.winfo_width() // 2) / self.current_scale
+                y0 = self.canvas.canvasy(self.canvas.winfo_height() // 2) / self.current_scale
             item = ImageItem(img, (x0, y0), len(self.images), self.canvas)
             self.images.append(item)
             self.resolve_collisions(item)
