@@ -1,8 +1,11 @@
 import tkinter as tk
 from PIL import ImageGrab, Image
 import subprocess
-import math
+import re
+import base64
+import io
 from image_item import ImageItem
+from urllib.request import urlopen
 
 class CollageCanvas:
     def __init__(self, root):
@@ -124,7 +127,38 @@ class CollageCanvas:
         if not self.check_xclip():
             print("xclip is required for clipboard image paste on Linux. Please install it with: sudo apt install xclip")
             return
+        # 1. Try ImageGrab.grabclipboard()
         img = ImageGrab.grabclipboard()
+        if not isinstance(img, Image.Image):
+            # 2. Try to extract base64 image from HTML clipboard
+            try:
+                html = subprocess.check_output(
+                    ['xclip', '-selection', 'clipboard', '-t', 'text/html', '-o'],
+                    stderr=subprocess.DEVNULL
+                ).decode(errors='ignore')
+            except Exception:
+                html = ''
+            # Try base64 first
+            m = re.search(r'<img[^>]+src="data:image/[^;]+;base64,([^"]+)"', html)
+            if m:
+                b64_data = m.group(1)
+                try:
+                    img_bytes = io.BytesIO(base64.b64decode(b64_data))
+                    img = Image.open(img_bytes)
+                except Exception:
+                    img = None
+            else:
+                # Try remote URL
+                m_url = re.search(r'<img[^>]+src="(https?://[^"]+)"', html)
+                if m_url:
+                    url = m_url.group(1)
+                    try:
+                        with urlopen(url) as response:
+                            img_bytes = io.BytesIO(response.read())
+                            img = Image.open(img_bytes)
+                    except Exception as e:
+                        print("Failed to download image from URL:", e)
+                        img = None
         if img is not None:
             x0 = self.canvas.canvasx(self.canvas.winfo_width() // 2) / self.current_scale
             y0 = self.canvas.canvasy(self.canvas.winfo_height() // 2) / self.current_scale
