@@ -7,9 +7,13 @@ import io
 from image_item import ImageItem
 from urllib.request import urlopen
 
+
+WINDOW_START_X = 3840
+
 class CollageCanvas:
     def __init__(self, root):
         self.root = root
+        self.root.geometry(f"{1280}x{1440}+{WINDOW_START_X}+{0}")
         self.canvas = tk.Canvas(root, width=1200, height=1200, bg="white")
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.config(scrollregion=(-500, -500, 10000, 10000))
@@ -17,7 +21,7 @@ class CollageCanvas:
         self.x_axis_id = self.canvas.create_line(0, 0, 0, 1200, fill='black', width=2)  # y-axis
         self.y_axis_id = self.canvas.create_line(0, 0, 1200, 0, fill='black', width=2)  # x-axis
         self.images = []
-        self.current_scale = 1.0
+        self.current_scale = 0.5
         self.selected_image = None
         self.drag_offset = (0, 0)
         self.setup_bindings()
