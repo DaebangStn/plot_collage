@@ -4,7 +4,7 @@ import subprocess
 import re
 import base64
 import io
-from image_item import ImageItem
+from .image_item import ImageItem
 from urllib.request import urlopen
 
 

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plot-collage"
+version = "0.1.0"
+description = "A tkinter-based image collage canvas application"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pillow>=10.0.0",
+]
+
+[project.scripts]
+plot-collage = "plot_collage.main:main"
+
+[tool.uv]
+dev-dependencies = []
+
+[project.gui-scripts]
+plot-collage-gui = "plot_collage.main:main"
