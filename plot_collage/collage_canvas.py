@@ -14,7 +14,7 @@ WINDOW_START_X = 3840
 class CollageCanvas:
     def __init__(self, root):
         self.root = root
-        self.root.geometry(f"{720}x{720}+{WINDOW_START_X}+{720}")
+        self.root.geometry(f"{720}x{1440}+{WINDOW_START_X}+{0}")
         self.canvas = tk.Canvas(root, width=1200, height=1200, bg="white")
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.config(scrollregion=(-500, -500, 10000, 10000))
